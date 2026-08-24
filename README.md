@@ -3,10 +3,10 @@
 > An independent implementation of the Poke-style personal AI assistant,
 > purpose-built for WhatsApp.
 
-This project reimplements the Poke experience as a WhatsApp-first, open-source
-personal AI assistant. Send it a message to manage Gmail, Google Calendar,
-tasks, reminders, recurring automations, and web research. Sensitive actions
-are staged and require a later WhatsApp confirmation before they run.
+This project reimplements the Poke experience as a WhatsApp-first personal AI
+assistant. Send it a message to manage Gmail, Google Calendar, tasks,
+reminders, recurring automations, and web research. Sensitive actions are
+staged and require a later WhatsApp confirmation before they run.
 
 It is an independent project, not a fork of, affiliated with, endorsed by, or
 maintained by Poke or Cognition. Poke is a product of its respective owners.
@@ -44,6 +44,29 @@ The Interaction Agent is the only component that speaks on WhatsApp. Longer
 or tool-using work runs in an isolated Execution Agent and returns to the
 conversation when it is complete. Scheduled reminders and automations are
 durable Postgres jobs handled by a separate worker process.
+
+### System architecture
+
+![System architecture: WhatsApp client, Twilio, agents, tools, policy, worker, and PostgreSQL](docs/images/architecture-overview.png)
+
+The diagram shows the system boundaries: Twilio is the WhatsApp transport,
+PostgreSQL keeps contact-scoped state, and the worker handles durable scheduled
+work. Its original “Main Agent” and “Helper Agent” labels correspond to the
+current Interaction Agent and detached Execution Agent. The implementation now
+uses owned, typed integration tools rather than generic variable tool access.
+
+### Message and execution lifecycle
+
+![WhatsApp message lifecycle: validated webhook, visible reply, optional asynchronous execution, confirmation, and result delivery](docs/images/interaction-execution-flow.png)
+
+An inbound message is validated and persisted before Twilio receives a fast
+200 response. The Interaction Agent may send a visible reply immediately or
+start detached Execution work. Email and calendar writes are staged for an
+explicit later confirmation; completed work returns through the Interaction
+Agent, which is the sole WhatsApp speaker.
+
+For the canonical architecture and runtime invariants, see
+[docs/plan.md](docs/plan.md).
 
 ## Stack
 
@@ -84,8 +107,7 @@ your WhatsApp sender's inbound webhook to:
 https://<your-public-host>/webhook/twilio
 ```
 
-See the [deployment guide](docs/deploy.md) for the Railway production setup
-and [architecture plan](docs/plan.md) for the runtime model.
+See the [deployment guide](docs/deploy.md) for the Railway production setup.
 
 ## Security and data boundaries
 
@@ -102,8 +124,7 @@ and [architecture plan](docs/plan.md) for the runtime model.
 ## Project status
 
 This is an MVP / active development implementation. The current first-party
-integrations are Gmail and Google Calendar. The product surface and deployment
-requirements are documented in the repository; check the architecture and task
+integrations are Gmail and Google Calendar. Check the architecture and task
 documents before relying on it in production.
 
 ## Contributing
