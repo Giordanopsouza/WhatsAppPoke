@@ -1,0 +1,36 @@
+name: Open Code Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: open-code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: AI code review
+    # Repository secrets are intentionally unavailable to pull requests from forks.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Review pull request
+        uses: alibaba/open-code-review@1c8f930fc923753b17b80f633aea54274fc83825 # v1.7.15
+        with:
+          llm_url: ${{ vars.OCR_LLM_URL }}
+          llm_auth_token: ${{ secrets.OCR_LLM_TOKEN }}
+          llm_model: ${{ vars.OCR_LLM_MODEL }}
+          llm_use_anthropic: "false"
+          language: Portuguese
+          sticky_summary: "true"
+          incremental: "true"
+          route_severity_below: low
+          upload_artifacts: "true"

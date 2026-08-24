@@ -1,0 +1,28 @@
+{
+  "id": "msg-multi-1",
+  "threadId": "thread-3",
+  "snippet": "Versao texto puro do multipart.",
+  "payload": {
+    "mimeType": "multipart/alternative",
+    "headers": [
+      {"name": "From", "value": "Ana <ana@example.com>"},
+      {"name": "Subject", "value": "Multipart"},
+      {"name": "Date", "value": "Fri, 7 Aug 2026 12:00:00 -0300"}
+    ],
+    "body": {"size": 0},
+    "parts": [
+      {
+        "mimeType": "text/plain",
+        "body": {
+          "data": "VmVyc2FvIHRleHRvIHB1cm8gZG8gbXVsdGlwYXJ0Lg"
+        }
+      },
+      {
+        "mimeType": "text/html",
+        "body": {
+          "data": "PHA-VmVyc2FvIDxpPkhUTUw8L2k-IGRvIG11bHRpcGFydCBxdWUgZGV2ZSBzZXIgaWdub3JhZGEuPC9wPg"
+        }
+      }
+    ]
+  }
+}

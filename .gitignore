@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# Understand Anything
+.understand-anything/
+
+# DeepSec / pytest
+.deepsec/
+.pytest_cache/
+
+# Local Twilio webhook captures may contain personal contact data.
+tests/fixtures/twilio_inbound_*.json

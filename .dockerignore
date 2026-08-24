@@ -1,0 +1,20 @@
+# Keep: app/, alembic/, alembic.ini, pyproject.toml, uv.lock, README.md
+.git
+.gitignore
+.venv
+__pycache__
+**/__pycache__
+*.py[oc]
+.pytest_cache
+.env
+.env.example
+.cursor
+.claude
+.agents
+docs
+tasks
+tests
+Dockerfile
+.dockerignore
+
+.understand-anything

@@ -1,0 +1,9 @@
+{
+  "id": "evt-allday-1",
+  "summary": "Feriado",
+  "status": "confirmed",
+  "start": {"date": "2026-08-16"},
+  "end": {"date": "2026-08-17"},
+  "location": "",
+  "htmlLink": "https://calendar.google.com/event?eid=ALLDAY"
+}

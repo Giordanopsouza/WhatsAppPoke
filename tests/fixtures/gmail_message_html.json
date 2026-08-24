@@ -1,0 +1,16 @@
+{
+  "id": "msg-html-1",
+  "threadId": "thread-2",
+  "snippet": "Oi Ana, Segue o resumo da reuniao.",
+  "payload": {
+    "mimeType": "text/html",
+    "headers": [
+      {"name": "From", "value": "Bruno <bruno@example.com>"},
+      {"name": "Subject", "value": "Resumo HTML"},
+      {"name": "Date", "value": "Fri, 7 Aug 2026 11:00:00 -0300"}
+    ],
+    "body": {
+      "data": "PGh0bWw-PGJvZHk-PHA-T2kgQW5hLDwvcD48cD5TZWd1ZSBvIDxiPnJlc3VtbzwvYj4gZGEgcmV1bmlhby48L3A-PHA-QWJzLDxicj5CcnVubzwvcD48L2JvZHk-PC9odG1sPg"
+    }
+  }
+}

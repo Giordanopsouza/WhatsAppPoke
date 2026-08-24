@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "id": "user@example.com",
+      "summary": "Pessoal",
+      "primary": true,
+      "accessRole": "owner",
+      "timeZone": "America/Sao_Paulo",
+      "hidden": false
+    },
+    {
+      "id": "work@example.com",
+      "summary": "Trabalho",
+      "accessRole": "writer",
+      "timeZone": "America/Sao_Paulo"
+    },
+    {
+      "id": "hidden@example.com",
+      "summary": "Oculta",
+      "hidden": true,
+      "accessRole": "reader",
+      "timeZone": "America/Sao_Paulo"
+    }
+  ]
+}

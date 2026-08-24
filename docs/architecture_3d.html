@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wpp-agent — 3D Architecture Visualizer</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-panel: rgba(15, 23, 42, 0.85);
+      --bg-panel-hover: rgba(30, 41, 59, 0.95);
+      --border-subtle: rgba(255, 255, 255, 0.1);
+      --border-focus: rgba(99, 102, 241, 0.5);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      /* Layer Colors */
+      --col-transport: #22c55e;
+      --col-process: #06b6d4;
+      --col-agent: #818cf8;
+      --col-tool: #f59e0b;
+      --col-db: #38bdf8;
+      --col-security: #ec4899;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      outline: none;
+    }
+
+    /* Glassmorphic UI Containers */
+    .glass-panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.1);
+      z-index: 10;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Top Navigation Bar */
+    header {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      color: white;
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+    }
+
+    .title-group h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+
+    .title-group p {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* Search & Layer Filters */
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 220px;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 6px 12px 6px 30px;
+      color: #fff;
+      font-size: 12px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: #818cf8;
+      background: rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    .layer-pills {
+      display: flex;
+      gap: 6px;
+    }
+
+    .layer-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .layer-pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .layer-pill.active {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: #fff;
+    }
+
+    .layer-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Camera Preset Toolbar (Top-Right under header) */
+    .view-toolbar {
+      position: absolute;
+      top: 84px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    .view-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .view-btn:hover {
+      background: #1e293b;
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .view-btn.active {
+      background: #312e81;
+      color: #a5b4fc;
+      border-color: #6366f1;
+    }
+
+    .tooltip {
+      position: absolute;
+      left: 48px;
+      background: #0f172a;
+      border: 1px solid var(--border-subtle);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: all 0.15s;
+    }
+
+    .view-btn:hover .tooltip {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* Inspector Slide-Over Panel (Right) */
+    .inspector-panel {
+      position: absolute;
+      top: 84px;
+      right: 16px;
+      bottom: 96px;
+      width: 380px;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      overflow-y: auto;
+      transform: translateX(410px);
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .inspector-panel.open {
+      transform: translateX(0);
+    }
+
+    .inspector-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .node-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .node-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .node-title h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .node-title span {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+
+    .close-btn:hover {
+      color: #fff;
+    }
+
+    .inspector-section {
+      margin-bottom: 18px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .code-path {
+      font-family: 'Fira Code', monospace;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      color: #93c5fd;
+      word-break: break-all;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .copy-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: #cbd5e1;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .desc-text {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+
+    /* Module Boundary Card (Invariants) */
+    .boundary-card {
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 10px;
+    }
+
+    .boundary-item {
+      font-size: 12px;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .boundary-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .boundary-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+    }
+
+    .badge-owns {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .badge-forbid {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .conn-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .conn-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .conn-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .conn-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+
+    .conn-type {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* Flow Simulation Player (Bottom Bar) */
+    .flow-bar {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+
+    .flow-selector-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .flow-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .flow-select {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .flow-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .flow-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .flow-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .flow-btn.primary {
+      background: #4f46e5;
+      border-color: #6366f1;
+      box-shadow: 0 0 12px rgba(79, 70, 229, 0.4);
+    }
+
+    .flow-btn.primary:hover {
+      background: #4338ca;
+    }
+
+    .flow-progress-card {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .flow-step-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+
+    .flow-step-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      max-width: 450px;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Floating Legend (Bottom Left above Flow bar) */
+    .legend-panel {
+      position: absolute;
+      bottom: 92px;
+      left: 16px;
+      padding: 10px 14px;
+      display: flex;
+      gap: 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- WebGL Render Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Top Header Navigation -->
+  <header class="glass-panel">
+    <div class="brand">
+      <div class="logo-badge">W</div>
+      <div class="title-group">
+        <h1>wpp-agent Architecture</h1>
+        <p>Interactive 3D Isometric System Map • ADR 0013 / 0014 Target</p>
+      </div>
+    </div>
+
+    <div class="nav-controls">
+      <!-- Search -->
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search files, modules, tables..." />
+      </div>
+
+      <!-- Layer Filters -->
+      <div class="layer-pills">
+        <div class="layer-pill active" data-layer="transports">
+          <div class="layer-dot" style="background: var(--col-transport)"></div>
+          <span>Transports</span>
+        </div>
+        <div class="layer-pill active" data-layer="processes">
+          <div class="layer-dot" style="background: var(--col-process)"></div>
+          <span>Processes</span>
+        </div>
+        <div class="layer-pill active" data-layer="agents">
+          <div class="layer-dot" style="background: var(--col-agent)"></div>
+          <span>Agents</span>
+        </div>
+        <div class="layer-pill active" data-layer="tools">
+          <div class="layer-dot" style="background: var(--col-tool)"></div>
+          <span>Tools</span>
+        </div>
+        <div class="layer-pill active" data-layer="database">
+          <div class="layer-dot" style="background: var(--col-db)"></div>
+          <span>Database</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Camera Preset Toolbar -->
+  <div class="view-toolbar glass-panel">
+    <button class="view-btn active" id="btn-view-iso" title="Isometric 3D View">
+      📐
+      <span class="tooltip">Isometric 45°</span>
+    </button>
+    <button class="view-btn" id="btn-view-top" title="Top-down Flowchart">
+      🗺️
+      <span class="tooltip">Top-Down Blueprint</span>
+    </button>
+    <button class="view-btn" id="btn-view-pipeline" title="Agent Pipeline Focus">
+      🧠
+      <span class="tooltip">Interaction & Exec Focus</span>
+    </button>
+    <button class="view-btn" id="btn-view-db" title="Database ER Focus">
+      🗄️
+      <span class="tooltip">Database ER View</span>
+    </button>
+    <button class="view-btn" id="btn-view-reset" title="Reset View">
+      🔄
+      <span class="tooltip">Reset Camera</span>
+    </button>
+  </div>
+
+  <!-- Inspector Slide-Over Panel -->
+  <div class="inspector-panel glass-panel" id="inspector">
+    <div class="inspector-header">
+      <div class="node-title-group">
+        <div class="node-avatar" id="ins-avatar">💬</div>
+        <div class="node-title">
+          <h2 id="ins-title">Twilio WhatsApp Wire</h2>
+          <span id="ins-badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">TRANSPORT</span>
+        </div>
+      </div>
+      <button class="close-btn" id="ins-close">✕</button>
+    </div>
+
+    <!-- Repository Path -->
+    <div class="inspector-section">
+      <div class="section-label">Source File</div>
+      <div class="code-path">
+        <span id="ins-path">app/transport/twilio_wa.py</span>
+        <button class="copy-btn" id="ins-copy-btn">Copy</button>
+      </div>
+    </div>
+
+    <!-- Description -->
+    <div class="inspector-section">
+      <div class="section-label">Overview</div>
+      <p class="desc-text" id="ins-desc">
+        Handles Twilio WhatsApp webhook wire format, signature verification, and HTTP outbound dispatch.
+      </p>
+    </div>
+
+    <!-- Architecture Invariants (Owns / Must Not Know) -->
+    <div class="inspector-section">
+      <div class="section-label">Module Boundaries (AGENTS.md)</div>
+      <div class="boundary-card">
+        <div class="boundary-item">
+          <span class="boundary-badge badge-owns">OWNS</span>
+          <span id="ins-owns">Twilio signature validation, wire parsing, send_text outbound, error status codes.</span>
+        </div>
+        <div class="boundary-item">
+          <span class="boundary-badge badge-forbid">FORBIDDEN</span>
+          <span id="ins-forbid">DB queries, agent logic, prompt formatting, history state.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connected Components -->
+    <div class="inspector-section">
+      <div class="section-label">Connected Modules</div>
+      <div class="conn-list" id="ins-conns">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+
+    <!-- Key Symbols / Operations -->
+    <div class="inspector-section">
+      <div class="section-label">Key Symbols / Tables</div>
+      <div class="code-path" id="ins-symbols" style="font-size: 11px; color: #a5b4fc;">
+        send_text(), validate_twilio_signature()
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend-panel glass-panel">
+    <div class="legend-item">
+      <div class="legend-color" style="background: var(--col-transport)"></div>
+      <span>Transports & SaaS</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background: var(--col-process)"></div>
+      <span>Runtime Processes</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background: var(--col-agent)"></div>
+      <span>Agent Core</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background: var(--col-tool)"></div>
+      <span>Business Tools</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background: var(--col-db)"></div>
+      <span>Postgres Database</span>
+    </div>
+  </div>
+
+  <!-- Flow Simulation Player -->
+  <div class="flow-bar glass-panel">
+    <div class="flow-selector-group">
+      <span class="flow-label">Simulation Flow:</span>
+      <select class="flow-select" id="flow-select">
+        <option value="flow_inbound">1. Inbound WhatsApp & Immediate Interaction</option>
+        <option value="flow_execution">2. Detached Execution & SaaS Proxy</option>
+        <option value="flow_confirm">3. Two-Phase Action Confirmation (Security)</option>
+        <option value="flow_worker">4. Background Job & Worker Execution</option>
+        <option value="flow_connect">5. Composio OAuth Connect Flow</option>
+      </select>
+    </div>
+
+    <div class="flow-controls">
+      <button class="flow-btn" id="btn-flow-prev">◀ Prev</button>
+      <button class="flow-btn primary" id="btn-flow-play">▶ Play Flow</button>
+      <button class="flow-btn" id="btn-flow-next">Next ▶</button>
+      <button class="flow-btn" id="btn-flow-reset">Reset</button>
+    </div>
+
+    <div class="flow-progress-card">
+      <div class="flow-step-title" id="flow-step-title">Step 1 of 5: Inbound Webhook</div>
+      <div class="flow-step-desc" id="flow-step-desc">User sends WhatsApp message -> Twilio delivers webhook to FastAPI.</div>
+    </div>
+  </div>
+
+  <!-- 3D Architecture Engine Script -->
+  <script>
+    // -------------------------------------------------------------
+    // Architecture Data Definition
+    // -------------------------------------------------------------
+    const ARCH_DATA = {
+      nodes: [
+        // Layer 1: Transports & External SaaS
+        {
+          id: 'twilio_wire',
+          title: 'Twilio WhatsApp Wire',
+          layer: 'transports',
+          category: 'TRANSPORT',
+          path: 'app/transport/twilio_wa.py',
+          icon: '💬',
+          color: '#22c55e',
+          pos: { x: -440, y: 0, z: -180 },
+          desc: 'Owns Twilio signature checking, inbound webhook payload parsing, and direct outbound WhatsApp message / template delivery.',
+          owns: 'Twilio signature validation, wire parsing, send_text outbound, error status codes.',
+          forbid: 'DB queries, agent logic, prompt formatting, history state.',
+          symbols: 'validate_twilio_signature(), send_text(), parse_inbound_webhook()'
+        },
+        {
+          id: 'composio_proxy',
+          title: 'Composio Managed Auth',
+          layer: 'transports',
+          category: 'TRANSPORT',
+          path: 'app/integrations/composio.py',
+          icon: '🔌',
+          color: '#a855f7',
+          pos: { x: -440, y: 0, z: 20 },
+          desc: 'Managed OAuth authorization proxy. Scopes integrations per-contact (user_id=contact_id) for Gmail and Google Calendar APIs.',
+          owns: 'OAuth authorization URLs, external_account_id mapping, authenticated HTTP proxy client.',
+          forbid: 'WhatsApp wire format, agent prompts, conversation state, direct database mutations.',
+          symbols: 'get_composio_client(), create_auth_session(), proxy_api_call()'
+        },
+        {
+          id: 'gemini_llm',
+          title: 'Google Gemini Flash / Pro',
+          layer: 'transports',
+          category: 'TRANSPORT',
+          path: 'app/agent/model.py',
+          icon: '✨',
+          color: '#3b82f6',
+          pos: { x: -440, y: 0, z: 220 },
+          desc: 'Inference backend powering Interaction Agent (Gemini Flash) and Execution Agent (Gemini Flash / Pro) via Pydantic AI.',
+          owns: 'Pydantic AI model configuration, temperature, retry settings.',
+          forbid: 'Business logic, direct I/O.',
+          symbols: 'build_google_model(), PERSONA_MODEL_SETTINGS'
+        },
+
+        // Layer 2: Runtime Processes (Railway 3-Process Runtime)
+        {
+          id: 'api_process',
+          title: 'api (FastAPI Service :8000)',
+          layer: 'processes',
+          category: 'PROCESS',
+          path: 'app/api/main.py',
+          icon: '⚡',
+          color: '#06b6d4',
+          pos: { x: -200, y: 0, z: -180 },
+          desc: 'FastAPI web process. Receives Twilio webhooks, returns fast 200, persists inbound, acquires contact lock, dispatches Interaction Agent.',
+          owns: 'FastAPI routes, fast-200 webhook return, signed connect routes, after-200 Interaction invocation.',
+          forbid: 'Tools / MCP execution on the api process; never execute long-running tasks synchronously.',
+          symbols: 'app, /api/v1/twilio/webhook, /connect/{toolkit}, dispatch_inbound()'
+        },
+        {
+          id: 'worker_process',
+          title: 'worker (Job Runner Process)',
+          layer: 'processes',
+          category: 'PROCESS',
+          path: 'app/worker/loop.py',
+          icon: '⚙️',
+          color: '#10b981',
+          pos: { x: -200, y: 0, z: 40 },
+          desc: 'Dedicated background job worker. Polls Postgres job table with SELECT ... FOR UPDATE SKIP LOCKED and executes handlers.',
+          owns: 'Job claiming, execution, exponential retries, dead-lettering, reminder_due, outbound_due handlers.',
+          forbid: 'Twilio webhook payload parsing, direct web routing.',
+          symbols: 'worker_loop(), claim_job(), handle_reminder_due(), handle_outbound_due()'
+        },
+        {
+          id: 'analytics_process',
+          title: 'analytics (Streamlit Dashboard :8501)',
+          layer: 'processes',
+          category: 'PROCESS',
+          path: 'analytics/dashboard.py',
+          icon: '📊',
+          color: '#ec4899',
+          pos: { x: -200, y: 0, z: 240 },
+          desc: 'Read-only analytics and metrics dashboard. Connects directly to Supabase via read-only queries with login authentication.',
+          owns: 'Streamlit UI, aggregate SQL queries, conversation inspector, job health charts.',
+          forbid: 'Agent logic, Twilio wire calls, mutating application state.',
+          symbols: 'main(), query_conversation_metrics(), query_job_queue_status()'
+        },
+
+        // Layer 3: Agent Core
+        {
+          id: 'interaction_agent',
+          title: 'Interaction Agent',
+          layer: 'agents',
+          category: 'AGENT',
+          path: 'app/agent/interaction.py',
+          icon: '🧠',
+          color: '#818cf8',
+          pos: { x: 40, y: 0, z: -180 },
+          desc: 'The sole visible WhatsApp speaker (ADR 0014). Orchestrates conversation, reserves outbound message sequences, dispatches detached execution.',
+          owns: 'send_message_to_user, dispatch_execution, request_integration, cancel_execution, sequence idempotency.',
+          forbid: 'Direct SaaS API execution, heavy tools, MCP attachment, sending messages without reserved sequence.',
+          symbols: 'run_interaction_event(), InteractionDeps, send_message_to_user()'
+        },
+        {
+          id: 'execution_agent',
+          title: 'Execution Agent',
+          layer: 'agents',
+          category: 'AGENT',
+          path: 'app/agent/execution.py',
+          icon: '🎯',
+          color: '#a855f7',
+          pos: { x: 40, y: 0, z: 40 },
+          desc: 'Isolated detached task runner. Executes specific goals using owned business tools (Gmail, Calendar, Search, Tasks) without WhatsApp access.',
+          owns: 'Tool execution, calling Composio proxy, staging sensitive writes (pending_action), emitting execution_event.',
+          forbid: 'Sending WhatsApp messages, phone numbers, interacting directly with user.',
+          symbols: 'run_execution_goal(), ExecutionDeps, dispatch_execution()'
+        },
+        {
+          id: 'agent_prompts',
+          title: 'Prompts & Personas',
+          layer: 'agents',
+          category: 'AGENT',
+          path: 'app/agent/interaction_prompt.md',
+          icon: '📝',
+          color: '#c084fc',
+          pos: { x: 40, y: 0, z: 240 },
+          desc: 'Defines persona instructions, natural conversational Portuguese tone, brief status feedback, and safety constraints.',
+          owns: 'Tone, response structure, formatting conventions, tool guidance.',
+          forbid: 'Hardcoded security boundaries (security is enforced in Python code).',
+          symbols: 'INTERACTION_INSTRUCTIONS, EXECUTION_INSTRUCTIONS'
+        },
+
+        // Layer 4: Business Tools & Services
+        {
+          id: 'gmail_tools',
+          title: 'Gmail Owned Tools',
+          layer: 'tools',
+          category: 'TOOL',
+          path: 'app/agent/gmail_tools.py',
+          icon: '✉️',
+          color: '#ea4335',
+          pos: { x: 260, y: 0, z: -200 },
+          desc: 'Owned Gmail operations: search_emails, get_email, create_email_draft, stage_send_email, and execute_confirmed_email_send.',
+          owns: 'Pydantic schemas, validation, compact results, calling Composio authenticated proxy.',
+          forbid: 'Executing unconfirmed sends without validated pending_action hash.',
+          symbols: 'search_emails(), stage_send_email(), execute_confirmed_email_send()'
+        },
+        {
+          id: 'calendar_tools',
+          title: 'Calendar Owned Tools',
+          layer: 'tools',
+          category: 'TOOL',
+          path: 'app/agent/calendar_tools.py',
+          icon: '📅',
+          color: '#4285f4',
+          pos: { x: 260, y: 0, z: -60 },
+          desc: 'Owned Google Calendar operations: list_calendars, list_events, get_event, stage_create_event, and execute_confirmed_event_create.',
+          owns: 'Calendar event parsing, timezone translation, staging event creation.',
+          forbid: 'Bypassing confirmation for event mutations.',
+          symbols: 'list_events(), stage_create_event(), execute_confirmed_event_create()'
+        },
+        {
+          id: 'reminders_service',
+          title: 'Reminders & Scheduler',
+          layer: 'tools',
+          category: 'TOOL',
+          path: 'app/services/briefing.py',
+          icon: '⏰',
+          color: '#f59e0b',
+          pos: { x: 260, y: 0, z: 80 },
+          desc: 'Deterministic reminder ping creation, user tasks, and daily briefing knock cadence calculation.',
+          owns: 'Reminder due calculations, daily briefing opt-in/opt-out logic, enqueueing reminder_due jobs.',
+          forbid: 'LLM invocation during deterministic reminder ping.',
+          symbols: 'create_reminder(), check_briefing_due(), set_briefing_opted_out()'
+        },
+        {
+          id: 'connect_pages',
+          title: 'Composio Connect Pages',
+          layer: 'tools',
+          category: 'TOOL',
+          path: 'app/connect/pages.py',
+          icon: '🔗',
+          color: '#14b8a6',
+          pos: { x: 260, y: 0, z: 220 },
+          desc: 'Server-rendered branded HTML pages for OAuth integration connect, success celebration, and error diagnosis.',
+          owns: 'Clean server-rendered HTML/CSS, OAuth redirect handling.',
+          forbid: 'Direct DB queries, Composio SDK calls.',
+          symbols: 'render_connect_page(), render_success_page(), render_error_page()'
+        },
+
+        // Layer 5: Database & Persistence Layer (Supabase / Postgres)
+        {
+          id: 'db_contact',
+          title: 'contact (Tenant Root)',
+          layer: 'database',
+          category: 'DATABASE',
+          path: 'app/database/models/contact.py',
+          icon: '👤',
+          color: '#38bdf8',
+          pos: { x: 480, y: 0, z: -260 },
+          desc: 'Tenant isolation root. Every row in the database belongs to a contact_id. Phone number, timezone, last_seen_at.',
+          owns: 'Tenant boundary, RLS security policies.',
+          forbid: 'Cross-tenant access.',
+          symbols: 'Contact(id, phone, name, tz, last_seen_at)'
+        },
+        {
+          id: 'db_message',
+          title: 'message & Idempotency',
+          layer: 'database',
+          category: 'DATABASE',
+          path: 'app/database/models/message.py',
+          icon: '💬',
+          color: '#38bdf8',
+          pos: { x: 480, y: 0, z: -150 },
+          desc: 'Full conversation history and outbound idempotency reservations (interaction_run_id, sequence, delivery_state).',
+          owns: 'Inbound message deduplication, outbound sequence reservations, delivery tracking.',
+          forbid: 'Mutable chat history.',
+          symbols: 'Message(id, contact_id, direction, body, interaction_run_id, outbound_sequence)'
+        },
+        {
+          id: 'db_execution',
+          title: 'execution_run & event',
+          layer: 'database',
+          category: 'DATABASE',
+          path: 'app/database/models/execution.py',
+          icon: '⚡',
+          color: '#38bdf8',
+          pos: { x: 480, y: 0, z: -40 },
+          desc: 'Detached execution runs and internal completion/failure/timeout events for Interaction re-entry.',
+          owns: 'Goal tracking, dedupe keys, execution status, tool outputs, event status.',
+          forbid: 'Rendering internal execution traces directly to user chat.',
+          symbols: 'ExecutionRun(id, goal, status, dedupe_key), ExecutionEvent(id, run_id, type)'
+        },
+        {
+          id: 'db_job',
+          title: 'job (Durable Queue)',
+          layer: 'database',
+          category: 'DATABASE',
+          path: 'app/database/models/job.py',
+          icon: '📋',
+          color: '#38bdf8',
+          pos: { x: 480, y: 0, z: 70 },
+          desc: 'Durable background job queue for worker. Kinds: reminder_due, outbound_due, outbound_sweep, integration_notify.',
+          owns: 'Background work persistence, lock lease tracking, retry count.',
+          forbid: 'In-flight conversation turns (chat runs on API, agent runs detached).',
+          symbols: 'Job(id, contact_id, kind, payload, run_at, status, locked_at)'
+        },
+        {
+          id: 'db_pending_action',
+          title: 'pending_action (2-Phase)',
+          layer: 'database',
+          category: 'DATABASE',
+          path: 'app/database/models/pending_action.py',
+          icon: '🛡️',
+          color: '#ec4899',
+          pos: { x: 480, y: 0, z: 180 },
+          desc: 'Security boundary for sensitive write actions (send email, create event). Stores exact payload hash, expiry, and status.',
+          owns: 'Payload hashing, staged action expiration, confirmation execution validation.',
+          forbid: 'Direct mutation without explicit user confirmation inbound.',
+          symbols: 'PendingAction(id, contact_id, kind, payload_hash, status, expires_at)'
+        },
+        {
+          id: 'db_integration',
+          title: 'integration & connect_link',
+          layer: 'database',
+          category: 'DATABASE',
+          path: 'app/database/models/integration.py',
+          icon: '🔑',
+          color: '#38bdf8',
+          pos: { x: 480, y: 0, z: 290 },
+          desc: 'Connected Composio toolkits per contact and signed short-lived nonce URLs for OAuth authorization.',
+          owns: 'Active provider status, external Composio account IDs, nonce verification.',
+          forbid: 'Storing raw SaaS OAuth tokens (managed exclusively by Composio).',
+          symbols: 'Integration(id, contact_id, provider, status), ConnectLink(id, nonce, expires_at)'
+        }
+      ],
+
+      connections: [
+        // Inbound & API flow
+        { from: 'twilio_wire', to: 'api_process', type: 'HTTPS Webhook', desc: 'Inbound WhatsApp message POST' },
+        { from: 'api_process', to: 'db_message', type: 'SQL Insert', desc: 'Persist inbound message (Fast-200)' },
+        { from: 'api_process', to: 'db_contact', type: 'SQL Query', desc: 'Lookup contact & timezone' },
+        { from: 'api_process', to: 'interaction_agent', type: 'Async Call', desc: 'Acquire contact lock & run interaction' },
+        
+        // Interaction Agent flows
+        { from: 'interaction_agent', to: 'gemini_llm', type: 'Pydantic AI', desc: 'Inference with conversation history' },
+        { from: 'interaction_agent', to: 'db_message', type: 'Idempotency', desc: 'Reserve (interaction_run_id, sequence)' },
+        { from: 'interaction_agent', to: 'twilio_wire', type: 'Wire Outbound', desc: 'send_message_to_user() -> Twilio' },
+        { from: 'interaction_agent', to: 'execution_agent', type: 'Detached Task', desc: 'dispatch_execution(goal)' },
+        { from: 'interaction_agent', to: 'connect_pages', type: 'Mint Link', desc: 'request_integration() -> signed URL' },
+        { from: 'interaction_agent', to: 'db_execution', type: 'SQL Insert', desc: 'Persist execution run & dedupe key' },
+
+        // Execution Agent & Tools
+        { from: 'execution_agent', to: 'gemini_llm', type: 'Pydantic AI', desc: 'Goal execution with owned tools' },
+        { from: 'execution_agent', to: 'gmail_tools', type: 'Tool Call', desc: 'search_emails / stage_send_email' },
+        { from: 'execution_agent', to: 'calendar_tools', type: 'Tool Call', desc: 'list_events / stage_create_event' },
+        { from: 'execution_agent', to: 'reminders_service', type: 'Tool Call', desc: 'create_reminder / manage tasks' },
+        { from: 'execution_agent', to: 'db_pending_action', type: '2-Phase Commit', desc: 'Stage sensitive write actions' },
+        { from: 'execution_agent', to: 'db_execution', type: 'Emit Event', desc: 'Record result in execution_event' },
+
+        // Tools & Composio Proxy
+        { from: 'gmail_tools', to: 'composio_proxy', type: 'Auth Proxy', desc: 'Gmail API via Composio proxy' },
+        { from: 'calendar_tools', to: 'composio_proxy', type: 'Auth Proxy', desc: 'Calendar API via Composio proxy' },
+        { from: 'connect_pages', to: 'composio_proxy', type: 'OAuth Redirect', desc: 'Redirect user to Composio auth' },
+        { from: 'connect_pages', to: 'db_integration', type: 'SQL Verify', desc: 'Validate signed nonce & activate toolkit' },
+
+        // Worker & Jobs
+        { from: 'reminders_service', to: 'db_job', type: 'Enqueue Job', desc: 'Insert reminder_due job' },
+        { from: 'worker_process', to: 'db_job', type: 'SKIP LOCKED', desc: 'Poll & claim pending jobs' },
+        { from: 'worker_process', to: 'twilio_wire', type: 'Deterministic Out', desc: 'Send reminder ping to WhatsApp' },
+
+        // Analytics
+        { from: 'analytics_process', to: 'db_contact', type: 'Read-Only', desc: 'Query active tenants & stats' },
+        { from: 'analytics_process', to: 'db_message', type: 'Read-Only', desc: 'Inspect message delivery states' },
+        { from: 'analytics_process', to: 'db_job', type: 'Read-Only', desc: 'Monitor queue lag & dead letters' }
+      ],
+
+      flows: {
+        flow_inbound: {
+          title: '1. Inbound WhatsApp & Immediate Interaction',
+          steps: [
+            {
+              title: 'Step 1: Inbound Webhook',
+              desc: 'User sends WhatsApp message -> Twilio delivers webhook to FastAPI endpoint.',
+              activeNodes: ['twilio_wire', 'api_process'],
+              activeConn: ['twilio_wire->api_process']
+            },
+            {
+              title: 'Step 2: Fast-200 & Inbound Persistence',
+              desc: 'FastAPI verifies Twilio signature, persists inbound in `message` table, and returns 200 OK immediately.',
+              activeNodes: ['api_process', 'db_message'],
+              activeConn: ['api_process->db_message']
+            },
+            {
+              title: 'Step 3: Interaction Lock Acquisition',
+              desc: 'After 200: api/dispatch.py acquires per-contact PostgreSQL advisory lock to serialize turns.',
+              activeNodes: ['api_process', 'interaction_agent', 'db_contact'],
+              activeConn: ['api_process->interaction_agent', 'api_process->db_contact']
+            },
+            {
+              title: 'Step 4: Interaction Agent Inference',
+              desc: 'Interaction Agent formats conversation history and runs with Gemini Flash model.',
+              activeNodes: ['interaction_agent', 'gemini_llm'],
+              activeConn: ['interaction_agent->gemini_llm']
+            },
+            {
+              title: 'Step 5: Idempotent Sequence Reservation & Outbound',
+              desc: 'send_message_to_user reserves (interaction_run_id, sequence) in database and transmits via Twilio.',
+              activeNodes: ['interaction_agent', 'db_message', 'twilio_wire'],
+              activeConn: ['interaction_agent->db_message', 'interaction_agent->twilio_wire']
+            }
+          ]
+        },
+
+        flow_execution: {
+          title: '2. Detached Execution & SaaS Proxy',
+          steps: [
+            {
+              title: 'Step 1: Goal Dispatch',
+              desc: 'User requests email lookup -> Interaction Agent calls dispatch_execution(goal="Find unread emails").',
+              activeNodes: ['interaction_agent', 'db_execution', 'execution_agent'],
+              activeConn: ['interaction_agent->db_execution', 'interaction_agent->execution_agent']
+            },
+            {
+              title: 'Step 2: Detached Execution Spawn',
+              desc: 'Async Execution Agent starts in background with owned Gmail tools and contact credentials.',
+              activeNodes: ['execution_agent', 'gemini_llm'],
+              activeConn: ['execution_agent->gemini_llm']
+            },
+            {
+              title: 'Step 3: Owned Gmail Tool -> Composio Proxy',
+              desc: 'Execution Agent calls search_emails() tool -> Composio authenticated proxy queries Gmail API.',
+              activeNodes: ['execution_agent', 'gmail_tools', 'composio_proxy'],
+              activeConn: ['execution_agent->gmail_tools', 'gmail_tools->composio_proxy']
+            },
+            {
+              title: 'Step 4: Execution Event Emission',
+              desc: 'Execution finishes and writes compact results to execution_event table.',
+              activeNodes: ['execution_agent', 'db_execution'],
+              activeConn: ['execution_agent->db_execution']
+            },
+            {
+              title: 'Step 5: Interaction Re-entry & Final Reply',
+              desc: 'Internal event re-acquires contact lock, re-enters Interaction Agent with latest history, sends result to WhatsApp.',
+              activeNodes: ['db_execution', 'interaction_agent', 'twilio_wire'],
+              activeConn: ['interaction_agent->twilio_wire']
+            }
+          ]
+        },
+
+        flow_confirm: {
+          title: '3. Two-Phase Action Confirmation (Security)',
+          steps: [
+            {
+              title: 'Step 1: Sensitive Action Staging',
+              desc: 'Execution Agent creates email draft and calls stage_send_email().',
+              activeNodes: ['execution_agent', 'gmail_tools'],
+              activeConn: ['execution_agent->gmail_tools']
+            },
+            {
+              title: 'Step 2: pending_action Hash Persistence',
+              desc: 'Payload, recipient, hash, and expiry stored in pending_action table (status: staged).',
+              activeNodes: ['gmail_tools', 'db_pending_action'],
+              activeConn: ['execution_agent->db_pending_action']
+            },
+            {
+              title: 'Step 3: User Confirmation Prompt',
+              desc: 'Interaction Agent asks user on WhatsApp: "Posso enviar o email para Sarah com o assunto Projeto X?".',
+              activeNodes: ['interaction_agent', 'twilio_wire'],
+              activeConn: ['interaction_agent->twilio_wire']
+            },
+            {
+              title: 'Step 4: Explicit User "Sim"',
+              desc: 'User replies "Sim, pode enviar" -> Interaction Agent triggers execute_confirmed_email_send().',
+              activeNodes: ['twilio_wire', 'api_process', 'interaction_agent'],
+              activeConn: ['twilio_wire->api_process', 'api_process->interaction_agent']
+            },
+            {
+              title: 'Step 5: Hash Verification & Execution',
+              desc: 'Python code verifies pending_action status & hash, marks executed, and sends email via Composio.',
+              activeNodes: ['interaction_agent', 'db_pending_action', 'gmail_tools', 'composio_proxy'],
+              activeConn: ['gmail_tools->composio_proxy', 'execution_agent->db_pending_action']
+            }
+          ]
+        },
+
+        flow_worker: {
+          title: '4. Background Job & Worker Execution',
+          steps: [
+            {
+              title: 'Step 1: Scheduled Job Enqueue',
+              desc: 'User schedules reminder -> reminder row created and job (kind: reminder_due) enqueued in Postgres.',
+              activeNodes: ['reminders_service', 'db_job'],
+              activeConn: ['reminders_service->db_job']
+            },
+            {
+              title: 'Step 2: SKIP LOCKED Claim',
+              desc: 'worker/loop.py claims pending jobs with SELECT ... FOR UPDATE SKIP LOCKED and sets locked_at.',
+              activeNodes: ['db_job', 'worker_process'],
+              activeConn: ['worker_process->db_job']
+            },
+            {
+              title: 'Step 3: Deterministic Ping Execution',
+              desc: 'Worker handler runs deterministic reminder logic (no LLM invocation) and sends outbound WhatsApp message.',
+              activeNodes: ['worker_process', 'twilio_wire'],
+              activeConn: ['worker_process->twilio_wire']
+            },
+            {
+              title: 'Step 4: Job Completion',
+              desc: 'Job status set to done and reminder marked sent.',
+              activeNodes: ['worker_process', 'db_job'],
+              activeConn: ['worker_process->db_job']
+            }
+          ]
+        },
+
+        flow_connect: {
+          title: '5. Composio OAuth Connect Flow',
+          steps: [
+            {
+              title: 'Step 1: Request Integration',
+              desc: 'User asks to connect Gmail -> Interaction Agent calls request_integration(provider="gmail").',
+              activeNodes: ['interaction_agent', 'connect_pages'],
+              activeConn: ['interaction_agent->connect_pages']
+            },
+            {
+              title: 'Step 2: Signed Nonce Link Minting',
+              desc: 'Mints signed URL /connect/gmail?nonce=... and persists record in connect_link table.',
+              activeNodes: ['connect_pages', 'db_integration'],
+              activeConn: ['connect_pages->db_integration']
+            },
+            {
+              title: 'Step 3: Composio OAuth Redirect',
+              desc: 'User opens link in browser -> Composio Connect Pages validates nonce and redirects to Google OAuth.',
+              activeNodes: ['connect_pages', 'composio_proxy'],
+              activeConn: ['connect_pages->composio_proxy']
+            },
+            {
+              title: 'Step 4: Integration Activation',
+              desc: 'OAuth callback completes -> integration table row marked active (status: active, external_account_id=ca_...).',
+              activeNodes: ['composio_proxy', 'db_integration'],
+              activeConn: ['connect_pages->db_integration']
+            }
+          ]
+        }
+      }
+    };
+
+    // -------------------------------------------------------------
+    // Three.js Scene Setup & Rendering Engine
+    // -------------------------------------------------------------
+    let scene, camera, renderer, controls;
+    let nodeMeshes = {};
+    let connLines = [];
+    let flowParticles = [];
+    let raycaster, mouse;
+    let selectedNodeId = null;
+    let hoveredNodeId = null;
+
+    let currentFlowKey = 'flow_inbound';
+    let currentFlowStep = 0;
+    let isFlowPlaying = false;
+    let flowPlayInterval = null;
+
+    const layerVisibility = {
+      transports: true,
+      processes: true,
+      agents: true,
+      tools: true,
+      database: true
+    };
+
+    function init() {
+      const container = document.getElementById('webgl-canvas');
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      // 1. Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color('#070b14');
+      scene.fog = new THREE.FogExp2('#070b14', 0.00065);
+
+      // 2. Camera (Isometric 45 degree angle)
+      const aspect = width / height;
+      camera = new THREE.PerspectiveCamera(40, aspect, 10, 5000);
+      camera.position.set(500, 700, 750);
+
+      // 3. Renderer
+      renderer = new THREE.WebGLRenderer({
+        canvas: container,
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // 4. Orbit Controls
+      if (typeof THREE.OrbitControls !== 'undefined') {
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; // don't go below floor
+        controls.minDistance = 200;
+        controls.maxDistance = 2200;
+        controls.target.set(30, 0, 30);
+      } else {
+        camera.lookAt(30, 0, 30);
+      }
+
+      // 5. Lighting
+      setupLighting();
+
+      // 6. Isometric Floor Grid
+      setupGridFloor();
+
+      // 7. Create 3D Nodes & Connections
+      createAllNodes();
+      createAllConnections();
+
+      // 8. Interaction Raycasting
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      window.addEventListener('resize', onWindowResize, false);
+      window.addEventListener('mousemove', onMouseMove, false);
+      window.addEventListener('click', onCanvasClick, false);
+
+      setupUIEvents();
+      updateFlowUI();
+
+      // Select Twilio node by default to show inspector
+      selectNode('twilio_wire', false);
+
+      animate();
+    }
+
+    function setupLighting() {
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(400, 800, 300);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 50;
+      dirLight.shadow.camera.far = 2500;
+      const d = 800;
+      dirLight.shadow.camera.left = -d;
+      dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d;
+      dirLight.shadow.camera.bottom = -d;
+      dirLight.shadow.bias = -0.0005;
+      scene.add(dirLight);
+
+      const bluePoint = new THREE.PointLight(0x6366f1, 1.5, 1200);
+      bluePoint.position.set(0, 250, 0);
+      scene.add(bluePoint);
+
+      const cyanPoint = new THREE.PointLight(0x06b6d4, 1.2, 1200);
+      cyanPoint.position.set(-300, 200, -200);
+      scene.add(cyanPoint);
+    }
+
+    function setupGridFloor() {
+      const size = 2000;
+      const divisions = 40;
+
+      // Primary Grid
+      const gridHelper = new THREE.GridHelper(size, divisions, 0x334155, 0x1e293b);
+      gridHelper.position.y = -2;
+      scene.add(gridHelper);
+
+      // Floor plane to receive soft shadows
+      const floorGeo = new THREE.PlaneGeometry(size * 1.5, size * 1.5);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x090d16,
+        roughness: 0.9,
+        metalness: 0.1
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -3;
+      floor.receiveShadow = true;
+      scene.add(floor);
+    }
+
+    // -------------------------------------------------------------
+    // Texture Generation for 3D Node Cards
+    // -------------------------------------------------------------
+    function createNodeCardTexture(node) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      // Rounded background card
+      ctx.fillStyle = '#0f172a';
+      roundRect(ctx, 0, 0, 512, 256, 24);
+      ctx.fill();
+
+      // Gradient border
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = node.color;
+      roundRect(ctx, 3, 3, 506, 250, 22);
+      ctx.stroke();
+
+      // Top color accent bar
+      ctx.fillStyle = node.color;
+      ctx.beginPath();
+      ctx.moveTo(24, 0);
+      ctx.lineTo(488, 0);
+      ctx.quadraticCurveTo(512, 0, 512, 24);
+      ctx.lineTo(512, 40);
+      ctx.lineTo(0, 40);
+      ctx.lineTo(0, 24);
+      ctx.quadraticCurveTo(0, 0, 24, 0);
+      ctx.fill();
+
+      // Category Pill
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      roundRect(ctx, 16, 8, 120, 24, 6);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.fillText(node.category, 26, 25);
+
+      // Icon Avatar Circle
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.beginPath();
+      ctx.arc(60, 110, 36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.font = '36px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.icon, 60, 110);
+
+      // Title
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px Inter, sans-serif';
+      ctx.fillText(node.title, 115, 100);
+
+      // Path
+      ctx.fillStyle = '#93c5fd';
+      ctx.font = '14px "Fira Code", monospace';
+      ctx.fillText(node.path, 115, 128);
+
+      // Description snippet
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '14px Inter, sans-serif';
+      const words = node.desc.split(' ');
+      let line1 = '', line2 = '';
+      for (let w of words) {
+        if ((line1 + w).length < 42) line1 += w + ' ';
+        else if ((line2 + w).length < 42) line2 += w + ' ';
+      }
+      ctx.fillText(line1.trim(), 28, 185);
+      ctx.fillText(line2.trim() + '...', 28, 215);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.anisotropy = 8;
+      return texture;
+    }
+
+    function roundRect(ctx, x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    }
+
+    // -------------------------------------------------------------
+    // Create 3D Meshes & Geometry
+    // -------------------------------------------------------------
+    function createAllNodes() {
+      const cardWidth = 140;
+      const cardHeight = 70;
+      const cardDepth = 8;
+
+      ARCH_DATA.nodes.forEach(node => {
+        const group = new THREE.Group();
+        group.position.set(node.pos.x, node.pos.y + 25, node.pos.z);
+
+        // 3D Card Box
+        const cardTexture = createNodeCardTexture(node);
+        const materials = [
+          new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, transparent: true }), // right
+          new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, transparent: true }), // left
+          new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, transparent: true }), // top
+          new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, transparent: true }), // bottom
+          new THREE.MeshStandardMaterial({
+            map: cardTexture,
+            roughness: 0.2,
+            metalness: 0.1,
+            transparent: true
+          }), // front
+          new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8, transparent: true })  // back
+        ];
+
+        const cardGeo = new THREE.BoxGeometry(cardWidth, cardHeight, cardDepth);
+        const cardMesh = new THREE.Mesh(cardGeo, materials);
+        cardMesh.castShadow = true;
+        cardMesh.receiveShadow = true;
+        cardMesh.userData = { nodeId: node.id, isNode: true };
+
+        // Slanted isometric stand / pedestal
+        cardMesh.rotation.x = -Math.PI / 7; // slightly tilted for isometric view
+
+        // Ambient glow ring under node
+        const ringGeo = new THREE.RingGeometry(20, 60, 32);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(node.color),
+          transparent: true,
+          opacity: 0.18,
+          side: THREE.DoubleSide
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = -24;
+
+        // Anchor stem
+        const stemGeo = new THREE.CylinderGeometry(2, 2, 24, 8);
+        const stemMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5 });
+        const stem = new THREE.Mesh(stemGeo, stemMat);
+        stem.position.y = -12;
+
+        group.add(ring);
+        group.add(stem);
+        group.add(cardMesh);
+
+        scene.add(group);
+        nodeMeshes[node.id] = { group, cardMesh, ring, data: node };
+      });
+    }
+
+    function createAllConnections() {
+      ARCH_DATA.connections.forEach((conn, index) => {
+        const fromNode = ARCH_DATA.nodes.find(n => n.id === conn.from);
+        const toNode = ARCH_DATA.nodes.find(n => n.id === conn.to);
+        if (!fromNode || !toNode) return;
+
+        const p1 = new THREE.Vector3(fromNode.pos.x, fromNode.pos.y + 20, fromNode.pos.z);
+        const p2 = new THREE.Vector3(toNode.pos.x, toNode.pos.y + 20, toNode.pos.z);
+
+        // Elevate the midpoint to create an arched 3D cable
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        const dist = p1.distanceTo(p2);
+        mid.y += Math.min(dist * 0.25, 70);
+
+        const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+        const tubeGeo = new THREE.TubeGeometry(curve, 32, 1.8, 8, false);
+        const tubeMat = new THREE.MeshStandardMaterial({
+          color: 0x334155,
+          roughness: 0.4,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.6
+        });
+
+        const lineMesh = new THREE.Mesh(tubeGeo, tubeMat);
+        scene.add(lineMesh);
+
+        // Light Particle traveling on curve
+        const particleGeo = new THREE.SphereGeometry(3.5, 12, 12);
+        const particleMat = new THREE.MeshBasicMaterial({
+          color: 0x60a5fa,
+          transparent: true,
+          opacity: 0.9
+        });
+        const particleMesh = new THREE.Mesh(particleGeo, particleMat);
+        scene.add(particleMesh);
+
+        connLines.push({
+          mesh: lineMesh,
+          particle: particleMesh,
+          curve,
+          data: conn,
+          from: conn.from,
+          to: conn.to,
+          speed: 0.003 + (index % 4) * 0.001,
+          progress: (index * 0.17) % 1
+        });
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Animation Loop
+    // -------------------------------------------------------------
+    let clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (typeof TWEEN !== 'undefined') {
+        TWEEN.update();
+      }
+
+      const delta = clock.getDelta();
+      const elapsedTime = clock.getElapsedTime();
+
+      // Subtle float animation for node cards
+      Object.keys(nodeMeshes).forEach((id, i) => {
+        const meshObj = nodeMeshes[id];
+        if (meshObj && meshObj.group) {
+          const hoverOffset = Math.sin(elapsedTime * 1.5 + i * 0.5) * 2;
+          meshObj.cardMesh.position.y = hoverOffset;
+        }
+      });
+
+      // Animate particles along cables
+      connLines.forEach(conn => {
+        conn.progress += conn.speed;
+        if (conn.progress > 1) conn.progress = 0;
+        const pos = conn.curve.getPoint(conn.progress);
+        conn.particle.position.copy(pos);
+      });
+
+      if (controls && controls.update) {
+        controls.update();
+      }
+      renderer.render(scene, camera);
+    }
+
+    // -------------------------------------------------------------
+    // Camera Presets
+    // -------------------------------------------------------------
+    function tweenCamera(targetPos, targetLookAt, duration = 1000) {
+      if (typeof TWEEN === 'undefined') {
+        if (targetPos) camera.position.set(targetPos.x, targetPos.y, targetPos.z);
+        if (targetLookAt && controls && controls.target) controls.target.set(targetLookAt.x, targetLookAt.y, targetLookAt.z);
+        return;
+      }
+
+      if (targetPos) {
+        new TWEEN.Tween(camera.position)
+          .to(targetPos, duration)
+          .easing(TWEEN.Easing.Cubic.Out)
+          .start();
+      }
+
+      if (targetLookAt && controls && controls.target) {
+        new TWEEN.Tween(controls.target)
+          .to(targetLookAt, duration)
+          .easing(TWEEN.Easing.Cubic.Out)
+          .start();
+      }
+    }
+
+    function setCameraIsometric() {
+      tweenCamera({ x: 500, y: 700, z: 750 }, { x: 30, y: 0, z: 30 });
+    }
+
+    function setCameraTopDown() {
+      tweenCamera({ x: 20, y: 1100, z: 50 }, { x: 20, y: 0, z: 40 });
+    }
+
+    function setCameraPipeline() {
+      tweenCamera({ x: 40, y: 350, z: 450 }, { x: 40, y: 20, z: 40 });
+    }
+
+    function setCameraDatabase() {
+      tweenCamera({ x: 480, y: 400, z: 450 }, { x: 480, y: 20, z: 40 });
+    }
+
+    // -------------------------------------------------------------
+    // Interaction: Raycasting, Hover, & Selection
+    // -------------------------------------------------------------
+    function onWindowResize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    function onMouseMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+      const hit = intersects.find(i => i.object.userData && i.object.userData.isNode);
+
+      if (hit) {
+        const nodeId = hit.object.userData.nodeId;
+        if (hoveredNodeId !== nodeId) {
+          hoveredNodeId = nodeId;
+          document.body.style.cursor = 'pointer';
+        }
+      } else {
+        if (hoveredNodeId) {
+          hoveredNodeId = null;
+          document.body.style.cursor = 'default';
+        }
+      }
+    }
+
+    function onCanvasClick(event) {
+      // Don't trigger if clicked on UI
+      if (event.target.tagName !== 'CANVAS') return;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+      const hit = intersects.find(i => i.object.userData && i.object.userData.isNode);
+
+      if (hit) {
+        selectNode(hit.object.userData.nodeId, true);
+      }
+    }
+
+    function selectNode(nodeId, focusCamera = true) {
+      const node = ARCH_DATA.nodes.find(n => n.id === nodeId);
+      if (!node) return;
+
+      selectedNodeId = nodeId;
+
+      // Update Inspector Panel UI
+      const inspector = document.getElementById('inspector');
+      inspector.classList.add('open');
+
+      document.getElementById('ins-avatar').innerText = node.icon;
+      document.getElementById('ins-avatar').style.background = node.color;
+      document.getElementById('ins-title').innerText = node.title;
+      document.getElementById('ins-badge').innerText = node.category;
+      document.getElementById('ins-badge').style.background = `${node.color}33`;
+      document.getElementById('ins-badge').style.color = node.color;
+      document.getElementById('ins-path').innerText = node.path;
+      document.getElementById('ins-desc').innerText = node.desc;
+      document.getElementById('ins-owns').innerText = node.owns;
+      document.getElementById('ins-forbid').innerText = node.forbid;
+      document.getElementById('ins-symbols').innerText = node.symbols;
+
+      // Populate connections list
+      const connsList = document.getElementById('ins-conns');
+      connsList.innerHTML = '';
+      const relatedConns = ARCH_DATA.connections.filter(c => c.from === nodeId || c.to === nodeId);
+
+      relatedConns.forEach(conn => {
+        const isOutbound = conn.from === nodeId;
+        const targetId = isOutbound ? conn.to : conn.from;
+        const targetNode = ARCH_DATA.nodes.find(n => n.id === targetId);
+        if (!targetNode) return;
+
+        const item = document.createElement('div');
+        item.className = 'conn-item';
+        item.innerHTML = `
+          <div class="conn-name">
+            <span>${isOutbound ? '➜' : '⬅'}</span>
+            <span>${targetNode.icon} ${targetNode.title}</span>
+          </div>
+          <div class="conn-type">${conn.type}</div>
+        `;
+        item.onclick = () => selectNode(targetId, true);
+        connsList.appendChild(item);
+      });
+
+      // Highlight connections in 3D
+      highlightNodeConnections(nodeId);
+
+      // Focus camera on node if requested
+      if (focusCamera) {
+        tweenCamera(
+          { x: node.pos.x + 180, y: node.pos.y + 220, z: node.pos.z + 240 },
+          { x: node.pos.x, y: node.pos.y + 20, z: node.pos.z },
+          800
+        );
+      }
+    }
+
+    function highlightNodeConnections(nodeId) {
+      connLines.forEach(conn => {
+        const isRelated = conn.from === nodeId || conn.to === nodeId;
+        if (isRelated) {
+          conn.mesh.material.color.setHex(0x6366f1);
+          conn.mesh.material.opacity = 1.0;
+          conn.mesh.scale.set(1.5, 1.5, 1.5);
+          conn.particle.material.color.setHex(0x38bdf8);
+        } else {
+          conn.mesh.material.color.setHex(0x1e293b);
+          conn.mesh.material.opacity = 0.25;
+          conn.mesh.scale.set(1, 1, 1);
+          conn.particle.material.color.setHex(0x334155);
+        }
+      });
+    }
+
+    function resetConnectionHighlights() {
+      connLines.forEach(conn => {
+        conn.mesh.material.color.setHex(0x334155);
+        conn.mesh.material.opacity = 0.6;
+        conn.mesh.scale.set(1, 1, 1);
+        conn.particle.material.color.setHex(0x60a5fa);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Flow Simulation Engine
+    // -------------------------------------------------------------
+    function updateFlowUI() {
+      const flow = ARCH_DATA.flows[currentFlowKey];
+      if (!flow) return;
+
+      const step = flow.steps[currentFlowStep];
+      document.getElementById('flow-step-title').innerText = `${step.title} (${currentFlowStep + 1}/${flow.steps.length})`;
+      document.getElementById('flow-step-desc').innerText = step.desc;
+
+      // Highlight active flow nodes and connections in 3D
+      highlightFlowStep(step);
+    }
+
+    function highlightFlowStep(step) {
+      // Fade all nodes slightly
+      Object.keys(nodeMeshes).forEach(id => {
+        const meshObj = nodeMeshes[id];
+        const isActive = step.activeNodes.includes(id);
+        meshObj.cardMesh.material[4].opacity = isActive ? 1.0 : 0.35;
+        meshObj.ring.material.opacity = isActive ? 0.6 : 0.08;
+      });
+
+      // Highlight active flow cables
+      connLines.forEach(conn => {
+        const connKey = `${conn.from}->${conn.to}`;
+        const isFlowActive = step.activeConn && step.activeConn.includes(connKey);
+
+        if (isFlowActive) {
+          conn.mesh.material.color.setHex(0x38bdf8);
+          conn.mesh.material.opacity = 1.0;
+          conn.mesh.scale.set(2.0, 2.0, 2.0);
+          conn.particle.material.color.setHex(0x38bdf8);
+          conn.speed = 0.012; // accelerate active particle
+        } else {
+          conn.mesh.material.color.setHex(0x1e293b);
+          conn.mesh.material.opacity = 0.2;
+          conn.mesh.scale.set(1, 1, 1);
+          conn.particle.material.color.setHex(0x334155);
+          conn.speed = 0.003;
+        }
+      });
+
+      // Focus first active node in camera
+      if (step.activeNodes && step.activeNodes.length > 0) {
+        const firstActive = ARCH_DATA.nodes.find(n => n.id === step.activeNodes[0]);
+        if (firstActive) {
+          tweenCamera(
+            { x: firstActive.pos.x + 160, y: firstActive.pos.y + 240, z: firstActive.pos.z + 260 },
+            { x: firstActive.pos.x, y: firstActive.pos.y + 20, z: firstActive.pos.z },
+            700
+          );
+        }
+      }
+    }
+
+    function nextFlowStep() {
+      const flow = ARCH_DATA.flows[currentFlowKey];
+      if (currentFlowStep < flow.steps.length - 1) {
+        currentFlowStep++;
+      } else {
+        currentFlowStep = 0; // loop back
+      }
+      updateFlowUI();
+    }
+
+    function prevFlowStep() {
+      const flow = ARCH_DATA.flows[currentFlowKey];
+      if (currentFlowStep > 0) {
+        currentFlowStep--;
+      } else {
+        currentFlowStep = flow.steps.length - 1;
+      }
+      updateFlowUI();
+    }
+
+    function togglePlayFlow() {
+      const playBtn = document.getElementById('btn-flow-play');
+      if (isFlowPlaying) {
+        clearInterval(flowPlayInterval);
+        isFlowPlaying = false;
+        playBtn.innerText = '▶ Play Flow';
+        playBtn.classList.remove('primary');
+      } else {
+        isFlowPlaying = true;
+        playBtn.innerText = '⏸ Pause';
+        playBtn.classList.add('primary');
+        flowPlayInterval = setInterval(() => {
+          nextFlowStep();
+        }, 3200);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Setup UI DOM Event Listeners
+    // -------------------------------------------------------------
+    function setupUIEvents() {
+      // Camera Preset Buttons
+      document.getElementById('btn-view-iso').onclick = () => {
+        setActiveViewBtn('btn-view-iso');
+        setCameraIsometric();
+      };
+      document.getElementById('btn-view-top').onclick = () => {
+        setActiveViewBtn('btn-view-top');
+        setCameraTopDown();
+      };
+      document.getElementById('btn-view-pipeline').onclick = () => {
+        setActiveViewBtn('btn-view-pipeline');
+        setCameraPipeline();
+      };
+      document.getElementById('btn-view-db').onclick = () => {
+        setActiveViewBtn('btn-view-db');
+        setCameraDatabase();
+      };
+      document.getElementById('btn-view-reset').onclick = () => {
+        setActiveViewBtn('btn-view-iso');
+        setCameraIsometric();
+        resetConnectionHighlights();
+      };
+
+      // Inspector close button
+      document.getElementById('ins-close').onclick = () => {
+        document.getElementById('inspector').classList.remove('open');
+        resetConnectionHighlights();
+      };
+
+      // Copy source path button
+      document.getElementById('ins-copy-btn').onclick = () => {
+        const path = document.getElementById('ins-path').innerText;
+        navigator.clipboard.writeText(path);
+        const btn = document.getElementById('ins-copy-btn');
+        btn.innerText = 'Copied!';
+        setTimeout(() => btn.innerText = 'Copy', 1500);
+      };
+
+      // Layer Filter Toggles
+      document.querySelectorAll('.layer-pill').forEach(pill => {
+        pill.onclick = () => {
+          const layer = pill.getAttribute('data-layer');
+          layerVisibility[layer] = !layerVisibility[layer];
+          pill.classList.toggle('active', layerVisibility[layer]);
+
+          // Update 3D visibility
+          ARCH_DATA.nodes.forEach(node => {
+            if (node.layer === layer) {
+              const meshObj = nodeMeshes[node.id];
+              if (meshObj) meshObj.group.visible = layerVisibility[layer];
+            }
+          });
+        };
+      });
+
+      // Search bar
+      document.getElementById('search-input').oninput = (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query) {
+          resetConnectionHighlights();
+          return;
+        }
+
+        const match = ARCH_DATA.nodes.find(n =>
+          n.title.toLowerCase().includes(query) ||
+          n.path.toLowerCase().includes(query) ||
+          n.symbols.toLowerCase().includes(query) ||
+          n.desc.toLowerCase().includes(query)
+        );
+
+        if (match) {
+          selectNode(match.id, true);
+        }
+      };
+
+      // Flow Simulator Controls
+      document.getElementById('flow-select').onchange = (e) => {
+        currentFlowKey = e.target.value;
+        currentFlowStep = 0;
+        updateFlowUI();
+      };
+
+      document.getElementById('btn-flow-play').onclick = togglePlayFlow;
+      document.getElementById('btn-flow-next').onclick = nextFlowStep;
+      document.getElementById('btn-flow-prev').onclick = prevFlowStep;
+      document.getElementById('btn-flow-reset').onclick = () => {
+        currentFlowStep = 0;
+        updateFlowUI();
+      };
+    }
+
+    function setActiveViewBtn(btnId) {
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(btnId).classList.add('active');
+    }
+
+    // Launch Engine on Load
+    window.onload = init;
+  </script>
+</body>
+</html>

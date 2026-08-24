@@ -1,0 +1,7 @@
+{
+    "mcpServers": {
+      "logfire": {
+        "url": "https://logfire-us.pydantic.dev/mcp"
+      }
+    }
+  }
