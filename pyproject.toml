@@ -1,7 +1,7 @@
 [project]
 name = "wpp-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Open-source Poke implementation for WhatsApp: Gmail, Google Calendar, reminders, tasks, automations, and web research."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
